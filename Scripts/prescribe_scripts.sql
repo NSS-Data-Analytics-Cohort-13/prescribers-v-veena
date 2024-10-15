@@ -15,7 +15,7 @@ limit 1;
 select npi,sum(total_claim_count) as tt from prescription 
 group by npi
 order by tt desc
---limit 1;
+limit 1;
 
 
 --b. Repeat the above, but this time report the nppes_provider_first_name, nppes_provider_last_org_name, specialty_description, and the total number of claims.
@@ -86,24 +86,26 @@ limit 1
 
 --Q.3.a. Which drug (generic_name) had the highest total drug cost?
 select  d1.generic_name
-	,	p1.total_drug_cost
+	,	sum(p1.total_drug_cost) as totalcost
 from drug as d1
 join prescription p1
 on p1.drug_name=d1.drug_name
-group by d1.generic_name,p1.total_drug_cost
-order by p1.total_drug_cost desc
+group by d1.generic_name
+order by totalcost desc
 limit 1;
 
 --Q.3.b.Which drug (generic_name) has the hightest total cost per day? Bonus: Round your cost per day column to 2 decimal places. Google ROUND to see how this works.
 
-select  round(sum(p1.total_drug_cost/p1.total_day_supply),2) as day_cost
+select  round(sum(p1.total_drug_cost)/sum(p1.total_day_supply),2):: money as day_cost
 	,	d1.generic_name
 --	,	d1.drug_name
 from prescription as p1
 join drug d1
 on p1.drug_name=d1.drug_name
 group by d1.generic_name
-order by day_cost desc;
+order by day_cost desc
+limit 1 
+;
 
 --4.a. For each drug in the drug table, return the drug name and then a column named 'drug_type' which says 'opioid' for drugs which have opioid_drug_flag = 'Y', says 'antibiotic' for those drugs which have antibiotic_drug_flag = 'Y', and says 'neither' for all other drugs. Hint: You may want to use a CASE expression for this. See https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-case/
 
@@ -123,6 +125,7 @@ select
 		     when  d1.antibiotic_drug_flag = 'Y'   then 'antibiotic'
 		     else  'neither' end as drug_type
 	,   to_char(sum(p1.total_drug_cost),'FM$999,999,999.00') as cost_spent
+--  ,   round(sum(p1.total_drug_cost)):: money as cost_spent
 from drug as d1
 join prescription p1
 on p1.drug_name=d1.drug_name
@@ -138,27 +141,51 @@ from cbsa as c1
 join fips_county f1
 on c1.fipscounty=f1.fipscounty 
 where f1.state = 'TN'
-
+;
 --5.b. Which cbsa has the largest combined population? Which has the smallest? Report the CBSA name and total population.
 
 select * from population 
 select * from fips_county where state = 'TN'
 
 
-select  c1.cbsa
-	,	p1.population
+select -- c1.cbsa
+--	,	f1.state
+		c1.cbsaname
+	,	sum(p1.population) as combined_population
 from cbsa as c1
 join fips_county f1
 on c1.fipscounty=f1.fipscounty 
 join population p1
 on c1.fipscounty=p1.fipscounty
-where f1.state = 'TN'
-group by c1.cbsa,p1.population
-order by p1.population desc
+--where f1.state = 'TN'
+group by c1.cbsaname --,c1.cbsa,f1.state
+order by combined_population desc
 --limit 1 
---offset 41
+--offset 9
 ;
--- ans: cbsa=32820 is largest 937847, cbsa=34980 is min 8773
+
+--methos 2 using union
+(select  cbsaname, sum(population) as total_population,'largest' as flag
+from cbsa
+join population
+using(fipscounty)
+group by cbsaname
+order by total_population desc
+limit 1 )
+
+union
+(
+select  cbsaname, sum(population) as total_population,'smallest' as flag
+from cbsa
+join population
+using(fipscounty)
+group by cbsaname
+order by total_population 
+limit 1 
+)
+order by total_population desc
+;
+
 
 --5.c. What is the largest (in terms of population) county which is not included in a CBSA? Report the county name and population.
 select  f1.county 
